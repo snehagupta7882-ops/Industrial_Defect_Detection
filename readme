@@ -1,0 +1,65 @@
+# Multi-Material Industrial Defect Detection
+
+A two-stage CNN cascade that inspects an uploaded product image, identifies the **material** (metal, fabric, plastic, wood), decides whether it is **normal or defective**, and produces an inspection report through a Streamlit web app.
+
+Built with Python, TensorFlow/Keras (MobileNetV2 transfer learning), OpenCV, scikit-learn and Streamlit.
+
+## Pipeline
+
+```
+Upload image
+   -> Model 1: Material (fabric / metal / plastic / wood)
+   -> Model 2: Condition (normal / defective, tuned threshold 0.30)
+   -> ACCEPTED / REJECTED / NEEDS MANUAL REVIEW
+```
+
+Both models use MobileNetV2 (ImageNet weights, frozen base) + Global Average Pooling + Dropout + Dense/Softmax, with augmentation (flip, rotation, zoom) during training only.
+
+## Dataset
+
+Public datasets only. No self-collected data is used.
+
+| Source | Material | Images |
+|---|---|---|
+| NEU Surface Defect | Metal (steel) | 1,800 (defective only, 6 classes) |
+| MVTec AD: metal_nut | Metal | 335 (242 normal, 93 defective) |
+| MVTec AD: carpet | Fabric | 397 (308 normal, 89 defective) |
+| MVTec AD: wood | Wood | 326 (266 normal, 60 defective) |
+| MVTec AD: toothbrush | Plastic | 102 (72 normal, 30 defective) |
+
+Total: 2,960 images, 0 corrupt. Stratified 70/15/15 train/validation/test split created before augmentation and stored in `dataset_split.csv`.
+
+The condition model is trained on MVTec images only. NEU contains defective steel only, so including it would let the model learn "steel texture = defective" instead of real defects.
+
+## Results
+
+**Model 1: Material (test n=444)**: 100% accuracy on every class. This is an easy, in-distribution task and is not a real-world accuracy claim.
+
+**Model 2: Condition (MVTec test n=174, 42 defective)**
+
+| Threshold | Defective recall | Defective precision | Missed defects | False rejects | Accuracy |
+|---|---|---|---|---|---|
+| 0.50 (default) | 76% (32/42) | 76% | 10 | 10 | 89% |
+| 0.30 (tuned on validation) | 93% (39/42) | 47% | 3 | 44 | 73% |
+
+The threshold was chosen on the validation set, not the test set. Recall is prioritised because a missed defect costs more than a false alarm. Borderline cases (defect probability 0.30 to 0.50) are sent to manual review. With only 42 defective test images, treat 93% as indicative.
+
+A fine-tuning experiment (last 30 MobileNetV2 layers) gave no improvement, so the frozen model is used.
+
+Plots and metrics are in `results/` (confusion matrices, confidence histograms, `metrics.txt`).
+
+## Screenshots
+
+![App](screenshots/app_wood.png)
+![Model 2 confusion matrix](screenshots/cm_condition.png)
+![Defect probability](screenshots/conf_condition.png)
+
+## Run locally
+
+```bash
+git clone <your-repo-url>
+cd Industrial_Defect_Detection
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install tensorflow streamlit pillow numpy pandas scikit-learn matplotlib opencv-python
+streamli
